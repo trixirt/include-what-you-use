@@ -5,7 +5,7 @@ addons:
   apt:
     sources:
      - ubuntu-toolchain-r-test
-     - llvm-toolchain-trusty-7.0
+     - llvm-toolchain-trusty-7
     packages:
      - ninja-build
      # TODO: These should really be the snapshots packages, but they are currently
@@ -21,8 +21,8 @@ before_install:
  - sudo sh cmake.sh --skip-license --exclude-subdir --prefix=/usr/local
 
  # Absolute paths to LLVM's root and bin directory
- - ROOT_PATH=`llvm-config-7.0 --prefix`
- - BIN_PATH=`llvm-config-7.0 --bindir`
+ - ROOT_PATH=`llvm-config-7 --prefix`
+ - BIN_PATH=`llvm-config-7 --bindir`
 
 script:
 # Build IWYU
