@@ -1861,11 +1861,25 @@ size_t PrintableDiffs(const string& filename,
 
   const set<string>& aqi = associated_quoted_includes;  // short alias
 
+  // A custom comparator for sorting lines.
+  // The default for multimap is std::less<Key>. So the default is to
+  // sort by header type and then alphabetically.  Unless when the
+  // user specifies --no_reorder.  In which case nothing is done.
+  struct LineComparator {
+    bool operator()(const LineSortKey& a, const LineSortKey& b) const {
+      if (GlobalFlags().no_reorder)
+	return false;
+      else
+	return a < b;
+    }
+  };
+
   // Sort all the output-lines: system headers before user headers
   // before forward-declares, etc.  The easiest way to do this is to
   // just put them all in multimap whose key is a sort-order (multimap
   // because some headers might be listed twice in the source file.)
-  multimap<LineSortKey, const OneIncludeOrForwardDeclareLine*> sorted_lines;
+  multimap<LineSortKey, const OneIncludeOrForwardDeclareLine*,
+	   LineComparator> sorted_lines;
   for (const OneIncludeOrForwardDeclareLine& line : lines) {
     const IwyuFileInfo* file_info = nullptr;
     if (line.IsIncludeLine())
