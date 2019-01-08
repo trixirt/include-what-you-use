@@ -93,6 +93,7 @@ static void PrintHelp(const char* extra_msg) {
          "        file names (default: 80).\n"
          "   --no_comments: do not add 'why' comments.\n"
          "   --no_fwd_decls: do not use forward declarations.\n"
+         "   --no_reorder: do not sort includes.\n"
          "   --verbose=<level>: the higher the level, the more output.\n"
          "   --quoted_includes_first: when sorting includes, place quoted\n"
          "        ones first.\n"
@@ -165,6 +166,7 @@ CommandlineFlags::CommandlineFlags()
       pch_in_code(false),
       no_comments(false),
       no_fwd_decls(false),
+      no_reorder(false),
       quoted_includes_first(false) {
 }
 
@@ -182,6 +184,7 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
     {"max_line_length", optional_argument, nullptr, 'l'},
     {"no_comments", optional_argument, nullptr, 'o'},
     {"no_fwd_decls", optional_argument, nullptr, 'f'},
+    {"no_reorder", optional_argument, nullptr, 'r'},
     {"quoted_includes_first", no_argument, nullptr, 'q' },
     {nullptr, 0, nullptr, 0}
   };
@@ -197,6 +200,7 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
       case 'n': no_default_mappings = true; break;
       case 'o': no_comments = true; break;
       case 'f': no_fwd_decls = true; break;
+      case 'r': no_reorder = true; break;
       case 'x':
         if (strcmp(optarg, "add") == 0) {
           prefix_header_include_policy = CommandlineFlags::kAdd;
