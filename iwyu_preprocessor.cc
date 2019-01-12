@@ -584,6 +584,7 @@ void IwyuPreprocessorInfo::MacroDefined(const Token& id,
                                         const MacroDirective* directive) {
   const MacroInfo* macro = directive->getMacroInfo();
   const SourceLocation macro_loc = macro->getDefinitionLoc();
+    
   ERRSYM(GetFileEntry(macro_loc))
       << "[ #define     ] " << PrintableLoc(macro_loc)
       << ": " << GetName(id) << "\n";

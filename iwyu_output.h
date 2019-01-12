@@ -62,7 +62,8 @@ class OneUse {
   OneUse(const string& symbol_name,
          const clang::FileEntry* dfn_file,
          const string& dfn_filepath,
-         clang::SourceLocation use_loc);
+         clang::SourceLocation use_loc,
+	 clang::SourceLocation dfn_loc);
 
   const string& symbol_name() const { return symbol_name_; }
   const string& short_symbol_name() const { return short_symbol_name_; }
@@ -97,7 +98,8 @@ class OneUse {
   bool PublicHeadersContain(const string& elt);
   bool NeedsSuggestedHeader() const;    // not true for fwd-declare uses, e.g.
   int UseLinenum() const;
-
+  int MainIncludedFromLinenum() const;
+  
  private:
   void SetPublicHeaders();         // sets based on decl_filepath_
 
@@ -149,8 +151,16 @@ class OneIncludeOrForwardDeclareLine {
     return fwd_decl_;
   }
 
+  bool matches(const string& quoted_include, int start_linenum) const {
+    return IsIncludeLine() && (quoted_include_ == quoted_include) && (start_linenum_ == start_linenum);
+  }
+
   bool matches(const string& quoted_include) const {
     return IsIncludeLine() && (quoted_include_ == quoted_include);
+  }
+
+  bool matches(const clang::NamedDecl* decl, int start_linenum) const {
+    return !IsIncludeLine() && (fwd_decl_ == decl) && (start_linenum_ == start_linenum);
   }
 
   bool matches(const clang::NamedDecl* decl) const {
@@ -161,6 +171,7 @@ class OneIncludeOrForwardDeclareLine {
   void set_desired() { is_desired_ = true; }
   void clear_desired() { is_desired_ = false; }
   void clear_line_numbers() { start_linenum_ = end_linenum_ = -1; }
+  int start_linenum() const { return start_linenum_; }
   // Another symbol we're using that's defined in this file.
   void AddSymbolUse(const string& symbol_name);
   bool HasSymbolUse(const string& symbol_name) const;

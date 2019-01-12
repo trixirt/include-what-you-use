@@ -16,6 +16,7 @@
 #include <map>                          // for _Rb_tree_const_iterator, etc
 #include <utility>                      // for pair, make_pair, operator>
 #include <vector>                       // for vector, vector<>::iterator, etc
+#include <regex>
 
 #include "iwyu_ast_util.h"
 #include "iwyu_globals.h"
@@ -251,14 +252,22 @@ OneUse::OneUse(const NamedDecl* decl, SourceLocation use_loc,
       comment_(comment ? comment : ""),
       ignore_use_(false),
       is_iwyu_violation_(false) {
+
+    // go ahead and use this as the suggested header
+  if (GlobalFlags().no_reorder) {
+    set_suggested_header(ConvertToQuotedInclude(decl_filepath_));
+  }
+
 }
 
 // This constructor always creates a full use.
 OneUse::OneUse(const string& symbol_name, const FileEntry* dfn_file,
-               const string& dfn_filepath, SourceLocation use_loc)
+               const string& dfn_filepath, SourceLocation use_loc,
+	       SourceLocation dfn_loc)
     : symbol_name_(symbol_name),
       short_symbol_name_(symbol_name),
       decl_(nullptr),
+      decl_loc_(dfn_loc),
       decl_file_(dfn_file),
       decl_filepath_(dfn_filepath),
       use_loc_(use_loc),
@@ -272,6 +281,14 @@ OneUse::OneUse(const string& symbol_name, const FileEntry* dfn_file,
   CHECK_(!decl_filepath_.empty() && "Must pass a real filepath to OneUse");
   if (decl_filepath_[0] == '"' || decl_filepath_[0] == '<')
     suggested_header_ = decl_filepath_;
+
+  
+  // go ahead and use this as the suggested header
+  if (GlobalFlags().no_reorder) {
+    set_suggested_header(ConvertToQuotedInclude(decl_filepath_));
+  }
+			 
+
 }
 
 void OneUse::reset_decl(const clang::NamedDecl* decl) {
@@ -285,6 +302,25 @@ void OneUse::reset_decl(const clang::NamedDecl* decl) {
 int OneUse::UseLinenum() const {
   return GetLineNumber(use_loc_);
 }
+
+  int OneUse::MainIncludedFromLinenum() const {
+  clang::SourceLocation o, t;
+  const clang::FileEntry *e;
+  clang::FileID i;
+  int l = -1;
+  o = decl_loc_;
+  t = o;
+  while(t.isValid()) {
+    l = GetLineNumber(t);
+    i = GlobalSourceManager()->getFileID(t);
+    e = GlobalSourceManager()->getFileEntryForID(i);
+    t = GlobalSourceManager()->getIncludeLoc(i);
+    o = t;
+  }
+  return l;
+}
+
+
 
 string OneUse::PrintableUseLoc() const {
   return PrintableLoc(use_loc());
@@ -601,7 +637,7 @@ void IwyuFileInfo::ReportFullSymbolUse(SourceLocation use_loc,
 void IwyuFileInfo::ReportFullSymbolUse(SourceLocation use_loc,
                                        const string& dfn_filepath,
                                        const string& symbol) {
-  symbol_uses_.push_back(OneUse(symbol, nullptr, dfn_filepath, use_loc));
+  symbol_uses_.push_back(OneUse(symbol, nullptr, dfn_filepath, use_loc, SourceLocation()));
   LogSymbolUse("Marked full-info use of symbol", symbol_uses_.back());
 }
 
@@ -609,7 +645,7 @@ void IwyuFileInfo::ReportMacroUse(clang::SourceLocation use_loc,
                                   clang::SourceLocation dfn_loc,
                                   const string& symbol) {
   symbol_uses_.push_back(OneUse(symbol, GetFileEntry(dfn_loc),
-                                GetFilePath(dfn_loc), use_loc));
+                                GetFilePath(dfn_loc), use_loc, dfn_loc));
   LogSymbolUse("Marked full-info use of macro", symbol_uses_.back());
 }
 
@@ -620,7 +656,7 @@ void IwyuFileInfo::ReportDefinedMacroUse(const clang::FileEntry* used_in) {
 void IwyuFileInfo::ReportIncludeFileUse(const clang::FileEntry* included_file,
                                         const string& quoted_include) {
   symbol_uses_.push_back(OneUse("", included_file, quoted_include,
-                                SourceLocation()));
+                                SourceLocation(), SourceLocation()));
   LogSymbolUse("Marked use of include-file", symbol_uses_.back());
 }
 
@@ -1469,6 +1505,11 @@ void IwyuFileInfo::CalculateIwyuViolations(vector<OneUse>* uses) {
       internal::ProcessSymbolUse(&use, preprocessor_info_);
   }
 
+  if (GlobalFlags().no_reorder) {
+    desired_includes_have_been_calculated_ = true;
+    return;
+  }
+
   // (C1) Compute the direct includes of 'associated' files.
   set<string> associated_direct_includes;
   for (const IwyuFileInfo* associated : associated_headers_) {
@@ -1558,15 +1599,42 @@ namespace internal {
 
 template <class IncludeOrFwdDecl>
 bool Contains(const vector<OneIncludeOrForwardDeclareLine>& lines,
-              const IncludeOrFwdDecl& item) {
+              const IncludeOrFwdDecl& item, int line_num = -1) {
   return std::any_of(lines.begin(), lines.end(),
                      [&](const OneIncludeOrForwardDeclareLine& line) {
-    return line.matches(item);
+		       if (GlobalFlags().no_reorder) {
+			 return line.matches(item, line_num);
+		       } else {
+			 return line.matches(item);
+		       }
   });
 }
 
 template <class ContainerType>
 void ClearDesiredForSurplusIncludesOrForwardDeclares(ContainerType& container) {
+  if (GlobalFlags().no_reorder) {
+    set<int> removed_lines;
+    for (auto c : container) {
+      auto v = container.lower_bound(c.first);
+      auto vend = container.upper_bound(c.first);
+      for (; v != vend; ++v) {
+	if (v->second->is_present() && v->second->IsIncludeLine() && !v->second->is_desired()) {
+	  removed_lines.insert(v->second->start_linenum());
+	}
+      }
+    }
+    for (auto c : container) {
+      auto v = container.lower_bound(c.first);
+      auto vend = container.upper_bound(c.first);
+      for (; v != vend; ++v) {
+	if (v->second->is_desired() && !v->second->is_present() && !removed_lines.count(v->second->start_linenum())) {
+	  v->second->clear_desired();
+	}
+      }
+    }
+    
+  } else {
+
   // Traverse multimap key by key.
   for (typename ContainerType::iterator k = container.begin();
        k != container.end(); k = container.upper_bound(k->first)) {
@@ -1576,6 +1644,7 @@ void ClearDesiredForSurplusIncludesOrForwardDeclares(ContainerType& container) {
     for (; v != vend; ++v) {
       v->second->clear_desired();
     }
+  }
   }
 }
 
@@ -1591,9 +1660,17 @@ void CalculateDesiredIncludesAndForwardDeclares(
 
     if (use.is_full_use()) {
       CHECK_(use.has_suggested_header() && "Full uses should have #includes");
-      if (!Contains(*lines, use.suggested_header())) { // must be added
-        lines->push_back(OneIncludeOrForwardDeclareLine(
-            use.decl_file(), use.suggested_header(), -1));
+      if (GlobalFlags().no_reorder) {
+	if (!Contains(*lines, use.suggested_header(), use.MainIncludedFromLinenum())) { // must be added
+	  lines->push_back(OneIncludeOrForwardDeclareLine
+			   (use.decl_file(), use.suggested_header(),
+			    use.MainIncludedFromLinenum()));
+	}
+      } else {
+	if (!Contains(*lines, use.suggested_header())) { // must be added
+	  lines->push_back(OneIncludeOrForwardDeclareLine
+			   (use.decl_file(), use.suggested_header(), -1));
+	}
       }
     } else if (!use.has_suggested_header()) {
       // Forward-declare uses that are already satisfied by an #include
@@ -1791,12 +1868,16 @@ OutputLine PrintableIncludeOrForwardDeclareLine(
     return OutputLine(line.line());
   }
 
-  return OutputLine(line.line(),
-    GetSymbolsSortedByFrequency(line.symbol_counts()));
+  if (GlobalFlags().no_reorder) {
+    return OutputLine(line.line() + "  // lines " + line.LineNumberString());
+  } else {
+    return OutputLine(line.line(),
+		      GetSymbolsSortedByFrequency(line.symbol_counts()));
+  }
 }
 
 enum class LineSortOrdinal {
-  PrecompiledHeader,
+  PrecompiledHeader = -9,
   AssociatedHeader,
   AssociatedInlineDefinitions,
   QuotedInclude,
@@ -1806,32 +1887,46 @@ enum class LineSortOrdinal {
   ForwardDeclaration
 };
 
-using LineSortKey = pair<LineSortOrdinal, string>;
+using LineSortKey = pair<int, string>;
 
-LineSortOrdinal GetLineSortOrdinal(const OneIncludeOrForwardDeclareLine& line,
+  int GetLineSortOrdinal(const OneIncludeOrForwardDeclareLine& line,
                                    const set<string>& associated_quoted_includes,
                                    const IwyuFileInfo* file_info) {
   if (!line.IsIncludeLine())
-    return LineSortOrdinal::ForwardDeclaration;
+    return (int) LineSortOrdinal::ForwardDeclaration;
+
+  if (GlobalFlags().no_reorder) {
+    CHECK_(line.included_file() && "Need to have a valid included file");
+    return (int) LineSortOrdinal::ForwardDeclaration + 1 + (int) line.included_file()->getUID();
+  } else {
+	  
   if (file_info && file_info->is_pch_in_code())
-    return LineSortOrdinal::PrecompiledHeader;
+    return (int) LineSortOrdinal::PrecompiledHeader;
 
   const std::string quoted_include = line.quoted_include();
   if (ContainsKey(associated_quoted_includes, quoted_include)) {
     if (EndsWith(quoted_include, "-inl.h\""))
-      return LineSortOrdinal::AssociatedInlineDefinitions;
-    return LineSortOrdinal::AssociatedHeader;
+      return (int) LineSortOrdinal::AssociatedInlineDefinitions;
+    return (int) LineSortOrdinal::AssociatedHeader;
   }
 
   if (GlobalFlags().quoted_includes_first && EndsWith(quoted_include, "\""))
-    return LineSortOrdinal::QuotedInclude;
+    return (int) LineSortOrdinal::QuotedInclude;
   if (EndsWith(quoted_include, ".h>"))
-    return LineSortOrdinal::CHeader;
+    return (int) LineSortOrdinal::CHeader;
   if (EndsWith(quoted_include, ">"))
-    return LineSortOrdinal::CppHeader;
-  return LineSortOrdinal::OtherHeader;
+    return (int) LineSortOrdinal::CppHeader;
+  return (int) LineSortOrdinal::OtherHeader;
+  }
 }
 
+  static std::string xml_string(std::string s) {
+    std::string r = std::regex_replace(s, std::regex("\""), "&quot;");
+    r = std::regex_replace(r, std::regex("<"), "&lt;");
+    r = std::regex_replace(r, std::regex(">"), "&gt;");
+    return r;
+  }
+  
 // The sort key of an include/forward-declare line is a (LineSortOrdinal, string)
 // pair.  The string is always the line itself.
 LineSortKey GetSortKey(const OneIncludeOrForwardDeclareLine& line,
@@ -1854,10 +1949,24 @@ size_t PrintableDiffs(const string& filename,
 
   const set<string>& aqi = associated_quoted_includes;  // short alias
 
+  // A custom comparator for sorting lines.
+  // The default for multimap is std::less<Key>. So the default is to
+  // sort by header type and then alphabetically.  Unless when the
+  // user specifies --no_reorder.  In which case nothing is done.
+  struct LineComparator {
+    bool operator()(const LineSortKey& a, const LineSortKey& b) const {
+      //      if (GlobalFlags().no_reorder)
+      // return false;
+      // else
+	return a < b;
+    }
+  };
+
   // Sort all the output-lines: system headers before user headers
   // before forward-declares, etc.  The easiest way to do this is to
   // just put them all in multimap whose key is a sort-order (multimap
   // because some headers might be listed twice in the source file.)
+  //   LineComparator> sorted_lines;
   multimap<LineSortKey, const OneIncludeOrForwardDeclareLine*> sorted_lines;
   for (const OneIncludeOrForwardDeclareLine& line : lines) {
     const IwyuFileInfo* file_info = nullptr;
@@ -1867,6 +1976,21 @@ size_t PrintableDiffs(const string& filename,
     sorted_lines.insert(make_pair(GetSortKey(line, aqi, file_info), &line));
   }
 
+  // remove desired additions that do not have a matching removal
+  if (GlobalFlags().no_reorder) {
+    set<int> removed_lines;
+    for (auto k: sorted_lines) {
+      const OneIncludeOrForwardDeclareLine* l = k.second;
+      if (l->is_present() && !l->is_desired())
+	removed_lines.insert(l->start_linenum());
+    }
+    for (auto k : sorted_lines) {
+      OneIncludeOrForwardDeclareLine* l = (OneIncludeOrForwardDeclareLine*)k.second;
+      if (!l->is_present() && l->is_desired() && !removed_lines.count(l->start_linenum()))
+	l->clear_desired();
+    }
+  }
+  
   // First, check if there are no adds or deletes.  If so, we print a
   // shorter summary line.
   bool no_adds_or_deletes = true;
@@ -1889,11 +2013,17 @@ size_t PrintableDiffs(const string& filename,
   if (ShouldPrint(1)) {
     output_lines.push_back(
       OutputLine("\n" + filename + " should add these lines:"));
+
+
     for (const auto& key_line : sorted_lines) {
       const OneIncludeOrForwardDeclareLine* line = key_line.second;
       if (line->is_desired() && !line->is_present()) {
         output_lines.push_back(
           PrintableIncludeOrForwardDeclareLine(*line, aqi));
+
+	if (GlobalFlags().no_reorder)
+	  output_lines.back().add_prefix("+ ");
+
         ++num_edits;
       }
     }
@@ -1914,7 +2044,15 @@ size_t PrintableDiffs(const string& filename,
       }
     }
   }
-
+  if (GlobalFlags().no_reorder) {
+      if (ShouldPrint(0)) {
+    output_lines.push_back(
+      OutputLine("\nThe full include-list for " + filename + ":"));
+        output_lines.push_back(
+			       OutputLine("\n"));
+      }
+  } else {
+  
   // Finally, print the final, complete include-and-forward-declare list.
   if (ShouldPrint(0)) {
     output_lines.push_back(
@@ -1926,6 +2064,7 @@ size_t PrintableDiffs(const string& filename,
           PrintableIncludeOrForwardDeclareLine(*line, aqi));
       }
     }
+  }
   }
 
   // Compute max width of lines with comments so we can align them nicely.
@@ -1949,6 +2088,45 @@ size_t PrintableDiffs(const string& filename,
   // Let's print a helpful separator as well.
   output += "---\n";
 
+  if (GlobalFlags().output_replacements_xml.size()) {
+    FILE *f = fopen(GlobalFlags().output_replacements_xml.c_str(), "wt");
+    if (f) {
+
+      
+      fprintf(f, "<?xml version='1.0' ?>\n");
+      fprintf(f, "<iwyu style='noreorder'>\n");
+      fprintf(f, "<files>\n");
+      fprintf(f, "<file path='%s'>\n", filename.c_str());
+      fprintf(f, "<replacements>\n");
+
+      for (const auto& delete_key : sorted_lines) {
+	const OneIncludeOrForwardDeclareLine* delete_line = delete_key.second;
+	if (delete_line->is_present() && !delete_line->is_desired()) {
+
+	  int ln = delete_line->start_linenum();
+	  fprintf(f, "<replacement line='%d'>\n", ln);
+	  fprintf(f, "    <lines>\n");
+
+	  for (const auto& add_key : sorted_lines) {
+	    const OneIncludeOrForwardDeclareLine* add_line = add_key.second;
+	    if (add_line->is_desired() && !add_line->is_present() && add_line->start_linenum() == ln) {
+	      fprintf(f, "      <line>%s</line>\n", xml_string(add_line->line()).c_str());
+	    }
+	  }
+	  fprintf(f, "    </lines>\n");
+	  fprintf(f, "  </replacement>\n");
+	}
+      }
+      fprintf(f, "</replacements>\n");
+      fprintf(f, "</file>\n");
+      fprintf(f, "</files>\n");
+      fprintf(f, "</iwyu>\n");
+      
+      fclose(f);
+    }
+  }
+
+  
   return num_edits;
 }
 
@@ -2058,24 +2236,27 @@ size_t IwyuFileInfo::CalculateAndReportIwyuViolations() {
       if (line.IsIncludeLine() && line.is_desired()) {
         auto FI = line.included_file();
         auto IFI = preprocessor_info_->FileInfoFor(FI);
-        auto DSU = IFI->symbol_uses_;
-        for (auto d : DSU) {
-          auto d_symbol_name = d.symbol_name();
-          if (d_symbol_name.size()) {
-            bool found = false;
-            for (auto s : SU) {
-              auto s_symbol_name = s.symbol_name();
-              if (s_symbol_name.size()) {
-                if (s_symbol_name == d_symbol_name) {
-                  found = true;
-                  break;
-                }
-              }
-            }
-            if (!found)
-              SU.push_back(d);
-          }
-        }
+	// A pch will cause IFI to be a nullptr.
+	if (IFI) {
+	  auto DSU = IFI->symbol_uses_;
+	  for (auto d : DSU) {
+	    auto d_symbol_name = d.symbol_name();
+	    if (d_symbol_name.size()) {
+	      bool found = false;
+	      for (auto s : SU) {
+		auto s_symbol_name = s.symbol_name();
+		if (s_symbol_name.size()) {
+		  if (s_symbol_name == d_symbol_name) {
+		    found = true;
+		    break;
+		  }
+		}
+	      }
+	      if (!found)
+		SU.push_back(d);
+	    }
+	  }
+	}
       }
     }
     // Nothing added, bail early

@@ -101,7 +101,9 @@ struct CommandlineFlags {
   bool pch_in_code;   // Treat the first seen include as a PCH. No short option.
   bool no_comments;   // Disable 'why' comments. No short option.
   bool no_fwd_decls;  // Disable forward declarations.
-  bool quoted_includes_first; // Place quoted includes first in sort order.  
+  bool quoted_includes_first; // Place quoted includes first in sort order.
+  bool no_reorder;    // Disable sorting includes.
+  string output_replacements_xml; // xml file to write output to
 };
 
 const CommandlineFlags& GlobalFlags();
