@@ -103,6 +103,8 @@ struct CommandlineFlags {
   bool no_fwd_decls;  // Disable forward declarations.
   bool quoted_includes_first; // Place quoted includes first in sort order.  
   bool cxx17ns; // -C: C++17 nested namespace syntax
+  bool no_reorder;    // Disable sorting includes.
+  string output_replacements_xml; // xml file to write output to
 };
 
 const CommandlineFlags& GlobalFlags();

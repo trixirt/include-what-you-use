@@ -93,6 +93,7 @@ static void PrintHelp(const char* extra_msg) {
          "        file names (default: 80).\n"
          "   --no_comments: do not add 'why' comments.\n"
          "   --no_fwd_decls: do not use forward declarations.\n"
+         "   --no_reorder: do not sort includes.\n"
          "   --verbose=<level>: the higher the level, the more output.\n"
          "   --quoted_includes_first: when sorting includes, place quoted\n"
          "        ones first.\n"
@@ -167,7 +168,8 @@ CommandlineFlags::CommandlineFlags()
       no_comments(false),
       no_fwd_decls(false),
       quoted_includes_first(false),
-      cxx17ns(false) {
+      cxx17ns(false),
+      no_reorder(false) {
 }
 
 int CommandlineFlags::ParseArgv(int argc, char** argv) {
@@ -178,17 +180,19 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
     {"transitive_includes_only", no_argument, nullptr, 't'},
     {"verbose", required_argument, nullptr, 'v'},
     {"mapping_file", required_argument, nullptr, 'm'},
+    {"output_replacements_xml", required_argument, nullptr, 's'},
     {"no_default_mappings", no_argument, nullptr, 'n'},
     {"prefix_header_includes", required_argument, nullptr, 'x'},
     {"pch_in_code", no_argument, nullptr, 'h'},
     {"max_line_length", optional_argument, nullptr, 'l'},
     {"no_comments", optional_argument, nullptr, 'o'},
     {"no_fwd_decls", optional_argument, nullptr, 'f'},
+    {"no_reorder", optional_argument, nullptr, 'r'},
     {"quoted_includes_first", no_argument, nullptr, 'q' },
     {"cxx17ns", no_argument, nullptr, 'C'},
     {nullptr, 0, nullptr, 0}
   };
-  static const char shortopts[] = "d::p:v:c:m:n";
+  static const char shortopts[] = "d::p:v:c:m:n:r:s";
   while (true) {
     switch (getopt_long(argc, argv, shortopts, longopts, nullptr)) {
       case 'c': AddGlobToReportIWYUViolationsFor(optarg); break;
@@ -200,6 +204,8 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
       case 'n': no_default_mappings = true; break;
       case 'o': no_comments = true; break;
       case 'f': no_fwd_decls = true; break;
+      case 'r': no_reorder = no_fwd_decls = true; break; // dev : disable fwd_decls for now
+      case 's': output_replacements_xml = optarg; break;
       case 'x':
         if (strcmp(optarg, "add") == 0) {
           prefix_header_include_policy = CommandlineFlags::kAdd;
