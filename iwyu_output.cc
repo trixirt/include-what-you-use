@@ -255,10 +255,12 @@ OneUse::OneUse(const NamedDecl* decl, SourceLocation use_loc,
 
 // This constructor always creates a full use.
 OneUse::OneUse(const string& symbol_name, const FileEntry* dfn_file,
-               const string& dfn_filepath, SourceLocation use_loc)
+               const string& dfn_filepath, SourceLocation use_loc,
+	       SourceLocation dfn_loc)
     : symbol_name_(symbol_name),
       short_symbol_name_(symbol_name),
       decl_(nullptr),
+      decl_loc_(dfn_loc),
       decl_file_(dfn_file),
       decl_filepath_(dfn_filepath),
       use_loc_(use_loc),
@@ -601,15 +603,20 @@ void IwyuFileInfo::ReportFullSymbolUse(SourceLocation use_loc,
 void IwyuFileInfo::ReportFullSymbolUse(SourceLocation use_loc,
                                        const string& dfn_filepath,
                                        const string& symbol) {
-  symbol_uses_.push_back(OneUse(symbol, nullptr, dfn_filepath, use_loc));
+  symbol_uses_.push_back(OneUse(symbol, nullptr, dfn_filepath, use_loc, SourceLocation()));
   LogSymbolUse("Marked full-info use of symbol", symbol_uses_.back());
 }
 
+  static void xirt() {}
 void IwyuFileInfo::ReportMacroUse(clang::SourceLocation use_loc,
                                   clang::SourceLocation dfn_loc,
                                   const string& symbol) {
   symbol_uses_.push_back(OneUse(symbol, GetFileEntry(dfn_loc),
-                                GetFilePath(dfn_loc), use_loc));
+                                GetFilePath(dfn_loc), use_loc, dfn_loc));
+  string n = "NULL";
+  if (n == symbol)
+    xirt();
+  
   LogSymbolUse("Marked full-info use of macro", symbol_uses_.back());
 }
 
@@ -620,7 +627,7 @@ void IwyuFileInfo::ReportDefinedMacroUse(const clang::FileEntry* used_in) {
 void IwyuFileInfo::ReportIncludeFileUse(const clang::FileEntry* included_file,
                                         const string& quoted_include) {
   symbol_uses_.push_back(OneUse("", included_file, quoted_include,
-                                SourceLocation()));
+                                SourceLocation(), SourceLocation()));
   LogSymbolUse("Marked use of include-file", symbol_uses_.back());
 }
 

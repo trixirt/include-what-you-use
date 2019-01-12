@@ -62,7 +62,8 @@ class OneUse {
   OneUse(const string& symbol_name,
          const clang::FileEntry* dfn_file,
          const string& dfn_filepath,
-         clang::SourceLocation use_loc);
+         clang::SourceLocation use_loc,
+	 clang::SourceLocation dfn_loc);
 
   const string& symbol_name() const { return symbol_name_; }
   const string& short_symbol_name() const { return short_symbol_name_; }
