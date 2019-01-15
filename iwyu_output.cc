@@ -251,6 +251,12 @@ OneUse::OneUse(const NamedDecl* decl, SourceLocation use_loc,
       comment_(comment ? comment : ""),
       ignore_use_(false),
       is_iwyu_violation_(false) {
+
+    // go ahead and use this as the suggested header
+  if (GlobalFlags().no_reorder) {
+    set_suggested_header(ConvertToQuotedInclude(decl_filepath_));
+  }
+
 }
 
 // This constructor always creates a full use.
