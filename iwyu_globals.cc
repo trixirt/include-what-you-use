@@ -200,7 +200,7 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
       case 'n': no_default_mappings = true; break;
       case 'o': no_comments = true; break;
       case 'f': no_fwd_decls = true; break;
-      case 'r': no_reorder = true; break;
+    case 'r': no_reorder = no_fwd_decls = true; break; // dev : disable fwd_decls for now
       case 'x':
         if (strcmp(optarg, "add") == 0) {
           prefix_header_include_policy = CommandlineFlags::kAdd;
