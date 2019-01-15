@@ -1855,7 +1855,7 @@ OutputLine PrintableIncludeOrForwardDeclareLine(
 }
 
 enum class LineSortOrdinal {
-  PrecompiledHeader,
+  PrecompiledHeader = -9,
   AssociatedHeader,
   AssociatedInlineDefinitions,
   QuotedInclude,
@@ -1865,30 +1865,37 @@ enum class LineSortOrdinal {
   ForwardDeclaration
 };
 
-using LineSortKey = pair<LineSortOrdinal, string>;
+using LineSortKey = pair<int, string>;
 
-LineSortOrdinal GetLineSortOrdinal(const OneIncludeOrForwardDeclareLine& line,
+  int GetLineSortOrdinal(const OneIncludeOrForwardDeclareLine& line,
                                    const set<string>& associated_quoted_includes,
                                    const IwyuFileInfo* file_info) {
   if (!line.IsIncludeLine())
-    return LineSortOrdinal::ForwardDeclaration;
+    return (int) LineSortOrdinal::ForwardDeclaration;
+
+  if (GlobalFlags().no_reorder) {
+    CHECK_(line.included_file() && "Need to have a valid included file");
+    return (int) LineSortOrdinal::ForwardDeclaration + 1 + (int) line.included_file()->getUID();
+  } else {
+	  
   if (file_info && file_info->is_pch_in_code())
-    return LineSortOrdinal::PrecompiledHeader;
+    return (int) LineSortOrdinal::PrecompiledHeader;
 
   const std::string quoted_include = line.quoted_include();
   if (ContainsKey(associated_quoted_includes, quoted_include)) {
     if (EndsWith(quoted_include, "-inl.h\""))
-      return LineSortOrdinal::AssociatedInlineDefinitions;
-    return LineSortOrdinal::AssociatedHeader;
+      return (int) LineSortOrdinal::AssociatedInlineDefinitions;
+    return (int) LineSortOrdinal::AssociatedHeader;
   }
 
   if (GlobalFlags().quoted_includes_first && EndsWith(quoted_include, "\""))
-    return LineSortOrdinal::QuotedInclude;
+    return (int) LineSortOrdinal::QuotedInclude;
   if (EndsWith(quoted_include, ".h>"))
-    return LineSortOrdinal::CHeader;
+    return (int) LineSortOrdinal::CHeader;
   if (EndsWith(quoted_include, ">"))
-    return LineSortOrdinal::CppHeader;
-  return LineSortOrdinal::OtherHeader;
+    return (int) LineSortOrdinal::CppHeader;
+  return (int) LineSortOrdinal::OtherHeader;
+  }
 }
 
 // The sort key of an include/forward-declare line is a (LineSortOrdinal, string)
@@ -1919,9 +1926,9 @@ size_t PrintableDiffs(const string& filename,
   // user specifies --no_reorder.  In which case nothing is done.
   struct LineComparator {
     bool operator()(const LineSortKey& a, const LineSortKey& b) const {
-      if (GlobalFlags().no_reorder)
-	return false;
-      else
+      //      if (GlobalFlags().no_reorder)
+      // return false;
+      // else
 	return a < b;
     }
   };
@@ -1930,8 +1937,8 @@ size_t PrintableDiffs(const string& filename,
   // before forward-declares, etc.  The easiest way to do this is to
   // just put them all in multimap whose key is a sort-order (multimap
   // because some headers might be listed twice in the source file.)
-  multimap<LineSortKey, const OneIncludeOrForwardDeclareLine*,
-	   LineComparator> sorted_lines;
+  //   LineComparator> sorted_lines;
+  multimap<LineSortKey, const OneIncludeOrForwardDeclareLine*> sorted_lines;
   for (const OneIncludeOrForwardDeclareLine& line : lines) {
     const IwyuFileInfo* file_info = nullptr;
     if (line.IsIncludeLine())
