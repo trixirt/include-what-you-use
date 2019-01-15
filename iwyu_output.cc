@@ -288,6 +288,29 @@ int OneUse::UseLinenum() const {
   return GetLineNumber(use_loc_);
 }
 
+  int OneUse::MainIncludedFromLinenum() const {
+  clang::SourceLocation o, t;
+  const clang::FileEntry *e;
+  clang::FileID i;
+  int l = -1;
+  o = decl_loc_;
+  t = o;
+  while(t.isValid()) {
+    l = GetLineNumber(t);
+    i = GlobalSourceManager()->getFileID(t);
+    e = GlobalSourceManager()->getFileEntryForID(i);
+    std::string s = e->getName();
+    std::cout << "\t" <<  s << " " << l << std::endl;
+    
+    t = GlobalSourceManager()->getIncludeLoc(i);
+    o = t;
+  }
+  std::cout << decl_filepath_ << " " << l << std::endl;
+  return l;
+}
+
+
+
 string OneUse::PrintableUseLoc() const {
   return PrintableLoc(use_loc());
 }
@@ -296,6 +319,10 @@ void OneUse::SetPublicHeaders() {
   // We should never need to deal with public headers if we already know
   // who we map to.
   CHECK_(suggested_header_.empty() && "Should not need a public header here");
+    if (GlobalFlags().no_reorder) {
+         public_headers_.push_back(ConvertToQuotedInclude(decl_filepath_));
+  } else {
+
   const IncludePicker& picker = GlobalIncludePicker();   // short alias
   // If the symbol has a special mapping, use it, otherwise map its file.
   public_headers_ = picker.GetCandidateHeadersForSymbol(symbol_name_);
@@ -304,6 +331,7 @@ void OneUse::SetPublicHeaders() {
         decl_filepath_, GetFilePath(use_loc_));
   if (public_headers_.empty())
     public_headers_.push_back(ConvertToQuotedInclude(decl_filepath_));
+    }
 }
 
 const vector<string>& OneUse::public_headers() {
@@ -607,7 +635,9 @@ void IwyuFileInfo::ReportFullSymbolUse(SourceLocation use_loc,
   LogSymbolUse("Marked full-info use of symbol", symbol_uses_.back());
 }
 
-  static void xirt() {}
+  static void xirt(OneUse &use) {
+    use.MainIncludedFromLinenum();
+  }
 void IwyuFileInfo::ReportMacroUse(clang::SourceLocation use_loc,
                                   clang::SourceLocation dfn_loc,
                                   const string& symbol) {
@@ -615,7 +645,7 @@ void IwyuFileInfo::ReportMacroUse(clang::SourceLocation use_loc,
                                 GetFilePath(dfn_loc), use_loc, dfn_loc));
   string n = "NULL";
   if (n == symbol)
-    xirt();
+    xirt(symbol_uses_.back());
   
   LogSymbolUse("Marked full-info use of macro", symbol_uses_.back());
 }
@@ -1597,8 +1627,15 @@ void CalculateDesiredIncludesAndForwardDeclares(
     if (use.is_full_use()) {
       CHECK_(use.has_suggested_header() && "Full uses should have #includes");
       if (!Contains(*lines, use.suggested_header())) { // must be added
-        lines->push_back(OneIncludeOrForwardDeclareLine(
-            use.decl_file(), use.suggested_header(), -1));
+
+#if 0	
+         lines->push_back(OneIncludeOrForwardDeclareLine(
+             use.decl_file(), use.suggested_header(), -1));
+#else
+	lines->push_back(OneIncludeOrForwardDeclareLine(
+  	use.decl_file(), use.suggested_header(), use.MainIncludedFromLinenum()));
+#endif		
+
       }
     } else if (!use.has_suggested_header()) {
       // Forward-declare uses that are already satisfied by an #include
