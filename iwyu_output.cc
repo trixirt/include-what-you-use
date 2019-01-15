@@ -1731,7 +1731,8 @@ void CalculateDesiredIncludesAndForwardDeclares(
   }
 
   // Clear desired for all duplicates.
-  ClearDesiredForSurplusIncludesOrForwardDeclares(include_map);
+  if (!GlobalFlags().no_reorder)
+    ClearDesiredForSurplusIncludesOrForwardDeclares(include_map);
   ClearDesiredForSurplusIncludesOrForwardDeclares(fwd_decl_map);
 
   // Now reset all files included with "IWYU pragma: keep" as desired.
