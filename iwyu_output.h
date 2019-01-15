@@ -98,7 +98,8 @@ class OneUse {
   bool PublicHeadersContain(const string& elt);
   bool NeedsSuggestedHeader() const;    // not true for fwd-declare uses, e.g.
   int UseLinenum() const;
-
+  int MainIncludedFromLinenum() const;
+  
  private:
   void SetPublicHeaders();         // sets based on decl_filepath_
 
@@ -150,8 +151,16 @@ class OneIncludeOrForwardDeclareLine {
     return fwd_decl_;
   }
 
+  bool matches(const string& quoted_include, int start_linenum) const {
+    return IsIncludeLine() && (quoted_include_ == quoted_include) && (start_linenum_ == start_linenum);
+  }
+
   bool matches(const string& quoted_include) const {
     return IsIncludeLine() && (quoted_include_ == quoted_include);
+  }
+
+  bool matches(const clang::NamedDecl* decl, int start_linenum) const {
+    return !IsIncludeLine() && (fwd_decl_ == decl) && (start_linenum_ == start_linenum);
   }
 
   bool matches(const clang::NamedDecl* decl) const {

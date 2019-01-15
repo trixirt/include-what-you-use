@@ -1592,10 +1592,14 @@ namespace internal {
 
 template <class IncludeOrFwdDecl>
 bool Contains(const vector<OneIncludeOrForwardDeclareLine>& lines,
-              const IncludeOrFwdDecl& item) {
+              const IncludeOrFwdDecl& item, int line_num = -1) {
   return std::any_of(lines.begin(), lines.end(),
                      [&](const OneIncludeOrForwardDeclareLine& line) {
-    return line.matches(item);
+		       if (GlobalFlags().no_reorder) {
+			 return line.matches(item, line_num);
+		       } else {
+			 return line.matches(item);
+		       }
   });
 }
 
@@ -1625,13 +1629,14 @@ void CalculateDesiredIncludesAndForwardDeclares(
 
     if (use.is_full_use()) {
       CHECK_(use.has_suggested_header() && "Full uses should have #includes");
-      if (!Contains(*lines, use.suggested_header())) { // must be added
-
-	if (GlobalFlags().no_reorder) {
+      if (GlobalFlags().no_reorder) {
+	if (!Contains(*lines, use.suggested_header(), use.MainIncludedFromLinenum())) { // must be added
 	  lines->push_back(OneIncludeOrForwardDeclareLine
 			   (use.decl_file(), use.suggested_header(),
 			    use.MainIncludedFromLinenum()));
-	} else {
+	}
+      } else {
+	if (!Contains(*lines, use.suggested_header())) { // must be added
 	  lines->push_back(OneIncludeOrForwardDeclareLine
 			   (use.decl_file(), use.suggested_header(), -1));
 	}
