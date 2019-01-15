@@ -580,14 +580,10 @@ void IwyuPreprocessorInfo::MacroExpands(const Token& macro_use_token,
                  macro_def->getDefinitionLoc());
 }
 
-  static void trix() {}
 void IwyuPreprocessorInfo::MacroDefined(const Token& id,
                                         const MacroDirective* directive) {
   const MacroInfo* macro = directive->getMacroInfo();
   const SourceLocation macro_loc = macro->getDefinitionLoc();
-  std::string n = "NULL";
-  if (n == GetName(id))
-    trix();
     
   ERRSYM(GetFileEntry(macro_loc))
       << "[ #define     ] " << PrintableLoc(macro_loc)

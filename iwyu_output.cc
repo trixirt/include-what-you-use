@@ -274,6 +274,14 @@ OneUse::OneUse(const string& symbol_name, const FileEntry* dfn_file,
   CHECK_(!decl_filepath_.empty() && "Must pass a real filepath to OneUse");
   if (decl_filepath_[0] == '"' || decl_filepath_[0] == '<')
     suggested_header_ = decl_filepath_;
+
+  
+  // go ahead and use this as the suggested header
+  if (GlobalFlags().no_reorder) {
+    set_suggested_header(ConvertToQuotedInclude(decl_filepath_));
+  }
+			 
+
 }
 
 void OneUse::reset_decl(const clang::NamedDecl* decl) {
@@ -319,10 +327,6 @@ void OneUse::SetPublicHeaders() {
   // We should never need to deal with public headers if we already know
   // who we map to.
   CHECK_(suggested_header_.empty() && "Should not need a public header here");
-    if (GlobalFlags().no_reorder) {
-         public_headers_.push_back(ConvertToQuotedInclude(decl_filepath_));
-  } else {
-
   const IncludePicker& picker = GlobalIncludePicker();   // short alias
   // If the symbol has a special mapping, use it, otherwise map its file.
   public_headers_ = picker.GetCandidateHeadersForSymbol(symbol_name_);
@@ -331,7 +335,6 @@ void OneUse::SetPublicHeaders() {
         decl_filepath_, GetFilePath(use_loc_));
   if (public_headers_.empty())
     public_headers_.push_back(ConvertToQuotedInclude(decl_filepath_));
-    }
 }
 
 const vector<string>& OneUse::public_headers() {
@@ -635,18 +638,11 @@ void IwyuFileInfo::ReportFullSymbolUse(SourceLocation use_loc,
   LogSymbolUse("Marked full-info use of symbol", symbol_uses_.back());
 }
 
-  static void xirt(OneUse &use) {
-    use.MainIncludedFromLinenum();
-  }
 void IwyuFileInfo::ReportMacroUse(clang::SourceLocation use_loc,
                                   clang::SourceLocation dfn_loc,
                                   const string& symbol) {
   symbol_uses_.push_back(OneUse(symbol, GetFileEntry(dfn_loc),
                                 GetFilePath(dfn_loc), use_loc, dfn_loc));
-  string n = "NULL";
-  if (n == symbol)
-    xirt(symbol_uses_.back());
-  
   LogSymbolUse("Marked full-info use of macro", symbol_uses_.back());
 }
 
@@ -1506,6 +1502,9 @@ void IwyuFileInfo::CalculateIwyuViolations(vector<OneUse>* uses) {
       internal::ProcessSymbolUse(&use, preprocessor_info_);
   }
 
+  if (GlobalFlags().no_reorder)
+    return;
+
   // (C1) Compute the direct includes of 'associated' files.
   set<string> associated_direct_includes;
   for (const IwyuFileInfo* associated : associated_headers_) {
@@ -1630,14 +1629,14 @@ void CalculateDesiredIncludesAndForwardDeclares(
       CHECK_(use.has_suggested_header() && "Full uses should have #includes");
       if (!Contains(*lines, use.suggested_header())) { // must be added
 
-#if 0	
-         lines->push_back(OneIncludeOrForwardDeclareLine(
-             use.decl_file(), use.suggested_header(), -1));
-#else
-	lines->push_back(OneIncludeOrForwardDeclareLine(
-  	use.decl_file(), use.suggested_header(), use.MainIncludedFromLinenum()));
-#endif		
-
+	if (GlobalFlags().no_reorder) {
+	  lines->push_back(OneIncludeOrForwardDeclareLine
+			   (use.decl_file(), use.suggested_header(),
+			    use.MainIncludedFromLinenum()));
+	} else {
+	  lines->push_back(OneIncludeOrForwardDeclareLine
+			   (use.decl_file(), use.suggested_header(), -1));
+	}
       }
     } else if (!use.has_suggested_header()) {
       // Forward-declare uses that are already satisfied by an #include
@@ -1972,7 +1971,8 @@ size_t PrintableDiffs(const string& filename,
       }
     }
   }
-
+  if (!GlobalFlags().no_reorder) {
+  
   // Finally, print the final, complete include-and-forward-declare list.
   if (ShouldPrint(0)) {
     output_lines.push_back(
@@ -1984,6 +1984,7 @@ size_t PrintableDiffs(const string& filename,
           PrintableIncludeOrForwardDeclareLine(*line, aqi));
       }
     }
+  }
   }
 
   // Compute max width of lines with comments so we can align them nicely.
