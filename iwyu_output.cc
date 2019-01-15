@@ -1838,8 +1838,12 @@ OutputLine PrintableIncludeOrForwardDeclareLine(
     return OutputLine(line.line());
   }
 
-  return OutputLine(line.line(),
-    GetSymbolsSortedByFrequency(line.symbol_counts()));
+  if (GlobalFlags().no_reorder) {
+    return OutputLine(line.line() + "  // lines " + line.LineNumberString());
+  } else {
+    return OutputLine(line.line(),
+		      GetSymbolsSortedByFrequency(line.symbol_counts()));
+  }
 }
 
 enum class LineSortOrdinal {
@@ -1955,6 +1959,10 @@ size_t PrintableDiffs(const string& filename,
       if (line->is_desired() && !line->is_present()) {
         output_lines.push_back(
           PrintableIncludeOrForwardDeclareLine(*line, aqi));
+
+	if (GlobalFlags().no_reorder)
+	  output_lines.back().add_prefix("+ ");
+
         ++num_edits;
       }
     }
