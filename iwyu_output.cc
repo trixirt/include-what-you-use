@@ -313,13 +313,9 @@ int OneUse::UseLinenum() const {
     l = GetLineNumber(t);
     i = GlobalSourceManager()->getFileID(t);
     e = GlobalSourceManager()->getFileEntryForID(i);
-    std::string s = e->getName();
-    std::cout << "\t" <<  s << " " << l << std::endl;
-    
     t = GlobalSourceManager()->getIncludeLoc(i);
     o = t;
   }
-  std::cout << decl_filepath_ << " " << l << std::endl;
   return l;
 }
 
@@ -1661,7 +1657,6 @@ void CalculateDesiredIncludesAndForwardDeclares(
       CHECK_(use.has_suggested_header() && "Full uses should have #includes");
       if (GlobalFlags().no_reorder) {
 	if (!Contains(*lines, use.suggested_header(), use.MainIncludedFromLinenum())) { // must be added
-	  std::cout << "Symbol : " << use.symbol_name() << "\n";
 	  lines->push_back(OneIncludeOrForwardDeclareLine
 			   (use.decl_file(), use.suggested_header(),
 			    use.MainIncludedFromLinenum()));
@@ -1969,6 +1964,21 @@ size_t PrintableDiffs(const string& filename,
     sorted_lines.insert(make_pair(GetSortKey(line, aqi, file_info), &line));
   }
 
+  // remove desired additions that do not have a matching removal
+  if (GlobalFlags().no_reorder) {
+    set<int> removed_lines;
+    for (auto k: sorted_lines) {
+      const OneIncludeOrForwardDeclareLine* l = k.second;
+      if (l->is_present() && !l->is_desired())
+	removed_lines.insert(l->start_linenum());
+    }
+    for (auto k : sorted_lines) {
+      OneIncludeOrForwardDeclareLine* l = (OneIncludeOrForwardDeclareLine*)k.second;
+      if (!l->is_present() && l->is_desired() && !removed_lines.count(l->start_linenum()))
+	l->clear_desired();
+    }
+  }
+  
   // First, check if there are no adds or deletes.  If so, we print a
   // shorter summary line.
   bool no_adds_or_deletes = true;
@@ -1991,6 +2001,8 @@ size_t PrintableDiffs(const string& filename,
   if (ShouldPrint(1)) {
     output_lines.push_back(
       OutputLine("\n" + filename + " should add these lines:"));
+
+
     for (const auto& key_line : sorted_lines) {
       const OneIncludeOrForwardDeclareLine* line = key_line.second;
       if (line->is_desired() && !line->is_present()) {
