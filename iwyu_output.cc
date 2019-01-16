@@ -1611,6 +1611,29 @@ bool Contains(const vector<OneIncludeOrForwardDeclareLine>& lines,
 
 template <class ContainerType>
 void ClearDesiredForSurplusIncludesOrForwardDeclares(ContainerType& container) {
+  if (GlobalFlags().no_reorder) {
+    set<int> removed_lines;
+    for (auto c : container) {
+      auto v = container.lower_bound(c.first);
+      auto vend = container.upper_bound(c.first);
+      for (; v != vend; ++v) {
+	if (v->second->is_present() && v->second->IsIncludeLine() && !v->second->is_desired()) {
+	  removed_lines.insert(v->second->start_linenum());
+	}
+      }
+    }
+    for (auto c : container) {
+      auto v = container.lower_bound(c.first);
+      auto vend = container.upper_bound(c.first);
+      for (; v != vend; ++v) {
+	if (v->second->is_desired() && !v->second->is_present() && !removed_lines.count(v->second->start_linenum())) {
+	  v->second->clear_desired();
+	}
+      }
+    }
+    
+  } else {
+
   // Traverse multimap key by key.
   for (typename ContainerType::iterator k = container.begin();
        k != container.end(); k = container.upper_bound(k->first)) {
@@ -1620,6 +1643,7 @@ void ClearDesiredForSurplusIncludesOrForwardDeclares(ContainerType& container) {
     for (; v != vend; ++v) {
       v->second->clear_desired();
     }
+  }
   }
 }
 
@@ -1637,6 +1661,7 @@ void CalculateDesiredIncludesAndForwardDeclares(
       CHECK_(use.has_suggested_header() && "Full uses should have #includes");
       if (GlobalFlags().no_reorder) {
 	if (!Contains(*lines, use.suggested_header(), use.MainIncludedFromLinenum())) { // must be added
+	  std::cout << "Symbol : " << use.symbol_name() << "\n";
 	  lines->push_back(OneIncludeOrForwardDeclareLine
 			   (use.decl_file(), use.suggested_header(),
 			    use.MainIncludedFromLinenum()));
@@ -1735,8 +1760,7 @@ void CalculateDesiredIncludesAndForwardDeclares(
   }
 
   // Clear desired for all duplicates.
-  if (!GlobalFlags().no_reorder)
-    ClearDesiredForSurplusIncludesOrForwardDeclares(include_map);
+  ClearDesiredForSurplusIncludesOrForwardDeclares(include_map);
   ClearDesiredForSurplusIncludesOrForwardDeclares(fwd_decl_map);
 
   // Now reset all files included with "IWYU pragma: keep" as desired.
