@@ -2034,7 +2034,14 @@ size_t PrintableDiffs(const string& filename,
       }
     }
   }
-  if (!GlobalFlags().no_reorder) {
+  if (GlobalFlags().no_reorder) {
+      if (ShouldPrint(0)) {
+    output_lines.push_back(
+      OutputLine("\nThe full include-list for " + filename + ":"));
+        output_lines.push_back(
+			       OutputLine("\n"));
+      }
+  } else {
   
   // Finally, print the final, complete include-and-forward-declare list.
   if (ShouldPrint(0)) {
