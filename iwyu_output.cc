@@ -16,6 +16,7 @@
 #include <map>                          // for _Rb_tree_const_iterator, etc
 #include <utility>                      // for pair, make_pair, operator>
 #include <vector>                       // for vector, vector<>::iterator, etc
+#include <regex>
 
 #include "iwyu_ast_util.h"
 #include "iwyu_globals.h"
@@ -1915,6 +1916,13 @@ using LineSortKey = pair<int, string>;
   }
 }
 
+  static std::string xml_string(std::string s) {
+    std::string r = std::regex_replace(s, std::regex("\""), "&quot;");
+    r = std::regex_replace(r, std::regex("<"), "&lt;");
+    r = std::regex_replace(r, std::regex(">"), "&gt;");
+    return r;
+  }
+  
 // The sort key of an include/forward-declare line is a (LineSortOrdinal, string)
 // pair.  The string is always the line itself.
 LineSortKey GetSortKey(const OneIncludeOrForwardDeclareLine& line,
@@ -2076,6 +2084,46 @@ size_t PrintableDiffs(const string& filename,
   // Let's print a helpful separator as well.
   output += "---\n";
 
+  if (GlobalFlags().output_replacements_xml.size()) {
+    FILE *f = fopen(GlobalFlags().output_replacements_xml.c_str(), "wt");
+    if (f) {
+
+      
+      fprintf(f, "<?xml version='1.0' ?>\n");
+      fprintf(f, "<iwyu style='noreorder'>\n");
+      fprintf(f, "<files>\n");
+      fprintf(f, "<file path='%s'>\n", filename.c_str());
+      fprintf(f, "<replacements>\n");
+
+      for (const auto& delete_key : sorted_lines) {
+	const OneIncludeOrForwardDeclareLine* delete_line = delete_key.second;
+	if (delete_line->is_present() && !delete_line->is_desired()) {
+
+	  int ln = delete_line->start_linenum();
+	  fprintf(f, "<replacement line='%d'>\n", ln);
+	  fprintf(f, "    <lines>\n");
+
+	  for (const auto& add_key : sorted_lines) {
+	    const OneIncludeOrForwardDeclareLine* add_line = add_key.second;
+	    if (add_line->is_desired() && !add_line->is_present() && add_line->start_linenum() == ln) {
+	      fprintf(f, "      <line>%s</line>\n", xml_string(add_line->line()).c_str());
+	    }
+	  }
+	  fprintf(f, "    </lines>\n");
+	  fprintf(f, "  </replacement>\n");
+	  fprintf(f, "</replacements>\n");
+	}
+      }
+      
+      fprintf(f, "</file>\n");
+      fprintf(f, "</files>\n");
+      fprintf(f, "</iwyu>\n");
+      
+      fclose(f);
+    }
+  }
+
+  
   return num_edits;
 }
 

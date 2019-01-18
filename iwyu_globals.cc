@@ -178,6 +178,7 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
     {"transitive_includes_only", no_argument, nullptr, 't'},
     {"verbose", required_argument, nullptr, 'v'},
     {"mapping_file", required_argument, nullptr, 'm'},
+    {"output_replacements_xml", required_argument, nullptr, 's'},
     {"no_default_mappings", no_argument, nullptr, 'n'},
     {"prefix_header_includes", required_argument, nullptr, 'x'},
     {"pch_in_code", no_argument, nullptr, 'h'},
@@ -188,7 +189,7 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
     {"quoted_includes_first", no_argument, nullptr, 'q' },
     {nullptr, 0, nullptr, 0}
   };
-  static const char shortopts[] = "d::p:v:c:m:n";
+  static const char shortopts[] = "d::p:v:c:m:n:r:s";
   while (true) {
     switch (getopt_long(argc, argv, shortopts, longopts, nullptr)) {
       case 'c': AddGlobToReportIWYUViolationsFor(optarg); break;
@@ -200,7 +201,8 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
       case 'n': no_default_mappings = true; break;
       case 'o': no_comments = true; break;
       case 'f': no_fwd_decls = true; break;
-    case 'r': no_reorder = no_fwd_decls = true; break; // dev : disable fwd_decls for now
+      case 'r': no_reorder = no_fwd_decls = true; break; // dev : disable fwd_decls for now
+      case 's': output_replacements_xml = optarg; break;
       case 'x':
         if (strcmp(optarg, "add") == 0) {
           prefix_header_include_policy = CommandlineFlags::kAdd;
