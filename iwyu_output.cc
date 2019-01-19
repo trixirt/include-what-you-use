@@ -2113,10 +2113,9 @@ size_t PrintableDiffs(const string& filename,
 	  }
 	  fprintf(f, "    </lines>\n");
 	  fprintf(f, "  </replacement>\n");
-	  fprintf(f, "</replacements>\n");
 	}
       }
-      
+      fprintf(f, "</replacements>\n");
       fprintf(f, "</file>\n");
       fprintf(f, "</files>\n");
       fprintf(f, "</iwyu>\n");
