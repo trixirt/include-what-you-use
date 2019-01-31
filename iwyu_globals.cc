@@ -97,6 +97,7 @@ static void PrintHelp(const char* extra_msg) {
          "   --verbose=<level>: the higher the level, the more output.\n"
          "   --quoted_includes_first: when sorting includes, place quoted\n"
          "        ones first.\n"
+         "   --cxx17ns: suggests the more concise syntax introduced in C++17\n"
          "\n"
          "In addition to IWYU-specific options you can specify the following\n"
          "options without -Xiwyu prefix:\n"
@@ -167,7 +168,8 @@ CommandlineFlags::CommandlineFlags()
       no_comments(false),
       no_fwd_decls(false),
       no_reorder(false),
-      quoted_includes_first(false) {
+      quoted_includes_first(false),
+      cxx17ns(false) {
 }
 
 int CommandlineFlags::ParseArgv(int argc, char** argv) {
@@ -187,6 +189,7 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
     {"no_fwd_decls", optional_argument, nullptr, 'f'},
     {"no_reorder", optional_argument, nullptr, 'r'},
     {"quoted_includes_first", no_argument, nullptr, 'q' },
+    {"cxx17ns", no_argument, nullptr, 'C'},
     {nullptr, 0, nullptr, 0}
   };
   static const char shortopts[] = "d::p:v:c:m:n:r:s";
@@ -221,6 +224,7 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
         CHECK_((max_line_length >= 0) && "Max line length must be positive");
         break;
       case 'q': quoted_includes_first = true; break;
+      case 'C': cxx17ns = true; break;
       case -1: return optind;   // means 'no more input'
       default:
         PrintHelp("FATAL ERROR: unknown flag.");
