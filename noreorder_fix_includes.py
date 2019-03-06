@@ -36,9 +36,20 @@ for j in root:
           f.close()
           f = open(path, "w")
           if f:
+            # Prefix additions first
+            n_lns = []
+            for l in k:
+              if l.tag == "prefixes":
+                for m in l:
+                  if m.tag == "line":
+                    s = m.text + '\n'
+                    n_lns.append(s)
+            for n in n_lns:
+              f.write(n)
+            # Replacements
+            n_lns = []
             cln_idx = int(1)
             for cln in ln:
-              n_lns = []
               n_lns.append(cln)
               for l in k:
                 if l.tag == "replacements":

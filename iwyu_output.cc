@@ -1685,6 +1685,8 @@ template <class ContainerType>
 void ClearDesiredForSurplusIncludesOrForwardDeclares(ContainerType& container) {
   if (GlobalFlags().no_reorder) {
     set<int> removed_lines;
+    // start_linenum == 0 with prefix include
+    removed_lines.insert(0);
     for (auto c : container) {
       auto v = container.lower_bound(c.first);
       auto vend = container.upper_bound(c.first);
@@ -1720,6 +1722,7 @@ void ClearDesiredForSurplusIncludesOrForwardDeclares(ContainerType& container) {
 }
 
 void CalculateDesiredIncludesAndForwardDeclares(
+    const IwyuPreprocessorInfo* preprocessor_info,
     const vector<OneUse>& uses,
     const set<string>& associated_desired_includes,
     const set<const FileEntry*>& kept_includes,
@@ -1732,10 +1735,20 @@ void CalculateDesiredIncludesAndForwardDeclares(
     if (use.is_full_use()) {
       CHECK_(use.has_suggested_header() && "Full uses should have #includes");
       if (GlobalFlags().no_reorder) {
-	if (!Contains(*lines, use.suggested_header(), use.MainIncludedFromLinenum())) { // must be added
-	  lines->push_back(OneIncludeOrForwardDeclareLine
+	/* default line number works most of the time */
+	int ln = use.MainIncludedFromLinenum();
+	/* if a prefix include, set line to 0 */
+	clang::FileID id = GlobalSourceManager()->getFileID(use.decl_loc());
+	const FileEntry* fe = GlobalSourceManager()->getFileEntryForID(id);
+	if (fe) {
+	  IwyuFileInfo* fi = preprocessor_info->FileInfoFor(fe);
+	  if (fi && fi->is_prefix_header())
+	    ln = 0;
+	}
+	if (!Contains(*lines, use.suggested_header(), ln)) { // must be added
+	    lines->push_back(OneIncludeOrForwardDeclareLine
 			   (use.decl_file(), use.suggested_header(),
-			    use.MainIncludedFromLinenum()));
+			    ln));
 	}
       } else {
 	if (!Contains(*lines, use.suggested_header())) { // must be added
@@ -2046,10 +2059,12 @@ size_t PrintableDiffs(const string& filename,
 
     sorted_lines.insert(make_pair(GetSortKey(line, aqi, file_info), &line));
   }
-
+  
   // remove desired additions that do not have a matching removal
   if (GlobalFlags().no_reorder) {
     set<int> removed_lines;
+    // start_linenum == 0 with prefix include
+    removed_lines.insert(0);
     for (auto k: sorted_lines) {
       const OneIncludeOrForwardDeclareLine* l = k.second;
       if (l->is_present() && !l->is_desired())
@@ -2168,8 +2183,17 @@ size_t PrintableDiffs(const string& filename,
       fprintf(f, "<iwyu style='noreorder'>\n");
       fprintf(f, "<files>\n");
       fprintf(f, "<file path='%s'>\n", filename.c_str());
-      fprintf(f, "<replacements>\n");
 
+      fprintf(f, "<prefixes>\n");
+      for (const auto& sl : sorted_lines) {
+	const OneIncludeOrForwardDeclareLine* l = sl.second;
+	if (!l->is_present() && l->is_desired() && 0 == l->start_linenum()) {
+	  fprintf(f, "  <line>%s</line>\n", xml_string(l->line()).c_str());
+	}
+      }
+      fprintf(f, "</prefixes>\n");
+
+      fprintf(f, "<replacements>\n");
       for (const auto& delete_key : sorted_lines) {
 	const OneIncludeOrForwardDeclareLine* delete_line = delete_key.second;
 	if (delete_line->is_present() && !delete_line->is_desired()) {
@@ -2285,8 +2309,8 @@ size_t IwyuFileInfo::CalculateAndReportIwyuViolations() {
 
   CalculateIwyuViolations(&symbol_uses_);
   EmitWarningMessages(symbol_uses_);
-  internal::CalculateDesiredIncludesAndForwardDeclares(
-      symbol_uses_, associated_desired_includes, kept_includes_,  &lines_);
+  internal::CalculateDesiredIncludesAndForwardDeclares
+    (preprocessor_info_, symbol_uses_, associated_desired_includes, kept_includes_,  &lines_);
 
   // Remove desired inclusions that have been inhibited by pragma
   // "no_include".
