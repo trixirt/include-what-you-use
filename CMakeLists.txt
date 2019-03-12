@@ -115,7 +115,7 @@ add_definitions(-DIWYU_GIT_REV="${IWYU_GIT_REV}")
 
 # Install programs
 install(TARGETS include-what-you-use RUNTIME DESTINATION bin)
-install(PROGRAMS fix_includes.py iwyu_tool.py DESTINATION bin)
+install(PROGRAMS noreorder_fix_includes.py fix_includes.py iwyu_tool.py DESTINATION bin)
 
 # Install mapping files
 file(GLOB MAPPING_FILES *.imp)
