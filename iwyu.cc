@@ -184,6 +184,7 @@ using clang::LValueReferenceType;
 using clang::LinkageSpecDecl;
 using clang::MemberExpr;
 using clang::NamedDecl;
+using clang::NamespaceDecl;
 using clang::NestedNameSpecifier;
 using clang::NestedNameSpecifierLoc;
 using clang::OverloadExpr;
@@ -1708,6 +1709,7 @@ class IwyuBaseAstVisitor : public BaseAstVisitor<Derived> {
         }
       }
     }
+
   }
 
   // The comment, if not nullptr, is extra text that is included along
@@ -3686,6 +3688,7 @@ class IwyuAstConsumer
 
   bool VisitNamespaceAliasDecl(clang::NamespaceAliasDecl* decl) {
     if (CanIgnoreCurrentASTNode())  return true;
+    CheckForUsingDirectiveDeclUse(CurrentLoc(), decl->getNamespace());
     ReportDeclUse(CurrentLoc(), decl->getNamespace());
     return Base::VisitNamespaceAliasDecl(decl);
   }
@@ -3799,10 +3802,12 @@ class IwyuAstConsumer
     if (CanIgnoreCurrentASTNode())  return true;
     ClassTemplateDecl* specialized_decl = decl->getSpecializedTemplate();
 
+    CheckForUsingDirectiveDeclUse(CurrentLoc(), specialized_decl);
     if (IsExplicitInstantiation(decl))
       ReportDeclUse(CurrentLoc(), specialized_decl);
     else
       ReportDeclForwardDeclareUse(CurrentLoc(), specialized_decl);
+
 
     return Base::VisitClassTemplateSpecializationDecl(decl);
   }
@@ -3816,9 +3821,36 @@ class IwyuAstConsumer
   //   using namespace a;
   //   ...
   bool VisitUsingDirectiveDecl(clang::UsingDirectiveDecl *decl) {
+    // Can not ignore using directive because of this use case:
+    //
+    // a.h:
+    //  namespace a {}
+    //  using namespace a;
+    //  #include "b.h"
+    //
+    // b.h:
+    //  namespace a {
+    //    typedef struct b { int c; } b;
+    //  }
+    //
+    // c.cpp:
+    //   #include "a.h"
+    //   b c;
+    //
+    // When the UsingDirectiveDecel is ignored,
+    // If a.h is reduced to b.h and produces a compile error because the
+    // namespace for type b can not be determined.
+    //
+    // So store for later processing
+    udd_[decl->getNominatedNamespace()->getOriginalNamespace()] = decl;
+
     if (CanIgnoreCurrentASTNode())  return true;
     ReportDeclUse(CurrentLoc(), decl->getNominatedNamespaceAsWritten());
     return Base::VisitUsingDirectiveDecl(decl);
+  }
+
+  bool VisitNamedDecl(clang::NamedDecl *decl) {
+    return Base::VisitNamedDecl(decl);
   }
 
   // If you say 'typedef Foo Bar', then clients can use Bar however
@@ -3871,8 +3903,10 @@ class IwyuAstConsumer
     // actual decl will be reported by obtaining it from the UsingShadowDecl
     // once we've tracked the UsingDecl use.
     if (const UsingShadowDecl* found_decl = DynCastFrom(expr->getFoundDecl())) {
+      CheckForUsingDirectiveDeclUse(CurrentLoc(), found_decl);
       ReportDeclUse(CurrentLoc(), found_decl);
     } else {
+      CheckForUsingDirectiveDeclUse(CurrentLoc(), expr->getDecl());
       ReportDeclUse(CurrentLoc(), expr->getDecl());
     }
     return Base::VisitDeclRefExpr(expr);
@@ -3909,11 +3943,13 @@ class IwyuAstConsumer
   bool VisitTypedefType(clang::TypedefType* type) {
     if (CanIgnoreCurrentASTNode())  return true;
     // TypedefType::getDecl() returns the place where the typedef is defined.
+    CheckForUsingDirectiveDeclUse(CurrentLoc(), type->getDecl());
     if (CanForwardDeclareType(current_ast_node())) {
       ReportDeclForwardDeclareUse(CurrentLoc(), type->getDecl());
     } else {
       ReportDeclUse(CurrentLoc(), type->getDecl());
     }
+
     return Base::VisitTypedefType(type);
   }
 
@@ -3921,6 +3957,7 @@ class IwyuAstConsumer
   bool VisitTagType(clang::TagType* type) {
     if (CanIgnoreCurrentASTNode())  return true;
 
+    CheckForUsingDirectiveDeclUse(CurrentLoc(), type->getDecl());
     // If we're forward-declarable, then no complicated checking is
     // needed: just forward-declare.
     if (CanForwardDeclareType(current_ast_node())) {
@@ -3991,6 +4028,7 @@ class IwyuAstConsumer
     // assume these default template template args always need full
     // type info.
     if (IsDefaultTemplateTemplateArg(current_ast_node())) {
+      CheckForUsingDirectiveDeclUse(CurrentLoc(), template_name.getAsTemplateDecl());
       current_ast_node()->set_in_forward_declare_context(false);
       ReportDeclUse(CurrentLoc(), template_name.getAsTemplateDecl());
     }
@@ -4026,9 +4064,32 @@ class IwyuAstConsumer
     return true;
   }
 
+  void CheckForUsingDirectiveDeclUse(SourceLocation used_loc,
+				     const NamedDecl *decl) {
+    if (!udd_.empty()) {
+      const DeclContext *Ctx = decl->getDeclContext();
+      vector<const DeclContext *>DC;
+    
+      while (Ctx) {
+	if (isa<NamespaceDecl>(Ctx))
+	  DC.push_back(Ctx);
+	Ctx = Ctx->getParent();
+      }
+      for (auto dc : DC) {
+	const auto *ND = dyn_cast<NamespaceDecl>(dc);
+	ND = ND->getOriginalNamespace();
+	auto I = udd_.find(ND);
+	if (I != udd_.end())
+	  ReportDeclUse(CurrentLoc(), I->second);
+      }
+    }
+  }
+  
  private:
   // Class we call to handle instantiated template functions and classes.
   InstantiatedTemplateVisitor instantiated_template_visitor_;
+  // For storing the UsingDirectiveDecl's.
+  map<const NamespaceDecl *, const UsingDirectiveDecl *> udd_;
 };  // class IwyuAstConsumer
 
 // We use an ASTFrontendAction to hook up IWYU with Clang.
