@@ -2234,24 +2234,27 @@ size_t IwyuFileInfo::CalculateAndReportIwyuViolations() {
       if (line.IsIncludeLine() && line.is_desired()) {
         auto FI = line.included_file();
         auto IFI = preprocessor_info_->FileInfoFor(FI);
-        auto DSU = IFI->symbol_uses_;
-        for (auto d : DSU) {
-          auto d_symbol_name = d.symbol_name();
-          if (d_symbol_name.size()) {
-            bool found = false;
-            for (auto s : SU) {
-              auto s_symbol_name = s.symbol_name();
-              if (s_symbol_name.size()) {
-                if (s_symbol_name == d_symbol_name) {
-                  found = true;
-                  break;
-                }
-              }
-            }
-            if (!found)
-              SU.push_back(d);
-          }
-        }
+	// A pch will cause IFI to be a nullptr.
+	if (IFI) {
+	  auto DSU = IFI->symbol_uses_;
+	  for (auto d : DSU) {
+	    auto d_symbol_name = d.symbol_name();
+	    if (d_symbol_name.size()) {
+	      bool found = false;
+	      for (auto s : SU) {
+		auto s_symbol_name = s.symbol_name();
+		if (s_symbol_name.size()) {
+		  if (s_symbol_name == d_symbol_name) {
+		    found = true;
+		    break;
+		  }
+		}
+	      }
+	      if (!found)
+		SU.push_back(d);
+	    }
+	  }
+	}
       }
     }
     // Nothing added, bail early
