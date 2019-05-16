@@ -1505,8 +1505,10 @@ void IwyuFileInfo::CalculateIwyuViolations(vector<OneUse>* uses) {
       internal::ProcessSymbolUse(&use, preprocessor_info_);
   }
 
-  if (GlobalFlags().no_reorder)
+  if (GlobalFlags().no_reorder) {
+    desired_includes_have_been_calculated_ = true;
     return;
+  }
 
   // (C1) Compute the direct includes of 'associated' files.
   set<string> associated_direct_includes;
