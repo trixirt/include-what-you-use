@@ -253,11 +253,6 @@ OneUse::OneUse(const NamedDecl* decl, SourceLocation use_loc,
       ignore_use_(false),
       is_iwyu_violation_(false) {
 
-    // go ahead and use this as the suggested header
-  if (GlobalFlags().no_reorder) {
-    set_suggested_header(ConvertToQuotedInclude(decl_filepath_));
-  }
-
 }
 
 // This constructor always creates a full use.
@@ -281,13 +276,6 @@ OneUse::OneUse(const string& symbol_name, const FileEntry* dfn_file,
   CHECK_(!decl_filepath_.empty() && "Must pass a real filepath to OneUse");
   if (decl_filepath_[0] == '"' || decl_filepath_[0] == '<')
     suggested_header_ = decl_filepath_;
-
-  
-  // go ahead and use this as the suggested header
-  if (GlobalFlags().no_reorder) {
-    set_suggested_header(ConvertToQuotedInclude(decl_filepath_));
-  }
-			 
 
 }
 
@@ -1559,6 +1547,21 @@ void CalculateIwyuForFullUse(OneUse* use,
   }
 }
 
+void NoReorderSetSuggestedIncludes(vector<OneUse>* uses) {
+  for (OneUse& use : *uses) {
+    if (!use.NeedsSuggestedHeader())
+      continue;
+
+    const vector<string>& public_headers = use.public_headers();
+    if (public_headers.size()) {
+      const string& choice = public_headers[0];
+      use.set_suggested_header(choice);
+    } else {
+      use.set_suggested_header(ConvertToQuotedInclude(use.decl_filepath()));
+    }
+  }
+}
+
 }  // namespace internal
 
 void IwyuFileInfo::CalculateIwyuViolations(vector<OneUse>* uses) {
@@ -1583,6 +1586,7 @@ void IwyuFileInfo::CalculateIwyuViolations(vector<OneUse>* uses) {
 
   if (GlobalFlags().no_reorder) {
     desired_includes_have_been_calculated_ = true;
+    internal::NoReorderSetSuggestedIncludes(uses);
     return;
   }
 
