@@ -510,17 +510,19 @@ void IwyuPreprocessorInfo::AddDirectInclude(
     }
   }
 
-  // We have a rule that if foo.h #includes bar.h, foo.cc doesn't need
-  // to #include bar.h as well, but instead gets it 'automatically'
-  // via foo.h.  We say that 'foo.h' is an "associated header" for
-  // foo.cc.  Make sure we ignore self-includes, though!
-  // iwyu_output.cc gets upset if a file is its own associated header.
-  if (includer == main_file_ && includee != includer &&
-      BelongsToMainCompilationUnit(includer, includee)) {
-    GetFromFileInfoMap(includer)
+  if (!GlobalFlags().no_belongs_to_main_unit) {
+    // We have a rule that if foo.h #includes bar.h, foo.cc doesn't need
+    // to #include bar.h as well, but instead gets it 'automatically'
+    // via foo.h.  We say that 'foo.h' is an "associated header" for
+    // foo.cc.  Make sure we ignore self-includes, though!
+    // iwyu_output.cc gets upset if a file is its own associated header.
+    if (includer == main_file_ && includee != includer &&
+	BelongsToMainCompilationUnit(includer, includee)) {
+      GetFromFileInfoMap(includer)
         ->AddAssociatedHeader(GetFromFileInfoMap(includee));
-    VERRS(4) << "Marked " << GetFilePath(includee)
-             << " as associated header of " << GetFilePath(includer) << ".\n";
+      VERRS(4) << "Marked " << GetFilePath(includee)
+	       << " as associated header of " << GetFilePath(includer) << ".\n";
+    }
   }
 
   // Besides marking headers as "associated header" with heuristics, the user
@@ -734,11 +736,13 @@ void IwyuPreprocessorInfo::FileChanged_EnterFile(
   if (main_file_ == nullptr)
     main_file_ = new_file;
 
-  if (main_file_ != nullptr &&
-      BelongsToMainCompilationUnit(GetFileEntry(include_loc), new_file)) {
-    VERRS(5) << "Added to main compilation unit: "
-             << GetFilePath(new_file) << "\n";
-    AddGlobToReportIWYUViolationsFor(GetFilePath(new_file));
+  if (!GlobalFlags().no_belongs_to_main_unit) {
+    if (main_file_ != nullptr &&
+	BelongsToMainCompilationUnit(GetFileEntry(include_loc), new_file)) {
+      VERRS(5) << "Added to main compilation unit: "
+	       << GetFilePath(new_file) << "\n";
+      AddGlobToReportIWYUViolationsFor(GetFilePath(new_file));
+    }
   }
   if (ShouldReportIWYUViolationsFor(new_file)) {
     files_to_report_iwyu_violations_for_.insert(new_file);

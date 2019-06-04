@@ -95,6 +95,7 @@ static void PrintHelp(const char* extra_msg) {
          "   --no_comments: do not add 'why' comments.\n"
          "   --no_fwd_decls: do not use forward declarations.\n"
          "   --no_reorder: do not sort includes.\n"
+         "   --no_belongs_to_main_unit: do not work headers with the same base as the main file.\n"
          "   --verbose=<level>: the higher the level, the more output.\n"
          "   --quoted_includes_first: when sorting includes, place quoted\n"
          "        ones first.\n"
@@ -168,6 +169,7 @@ CommandlineFlags::CommandlineFlags()
       no_comments(false),
       no_fwd_decls(false),
       no_reorder(false),
+      no_belongs_to_main_unit(false),
       quoted_includes_first(false),
       cxx17ns(false) {
 }
@@ -187,13 +189,15 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
     {"no_comments", no_argument, nullptr, 'o'},
     {"no_fwd_decls", no_argument, nullptr, 'f'},
     {"no_reorder", optional_argument, nullptr, 'r'},
+    {"no_belongs_to_main_unit", optional_argument, nullptr, 'a'},    
     {"quoted_includes_first", no_argument, nullptr, 'q' },
     {"cxx17ns", no_argument, nullptr, 'C'},
     {nullptr, 0, nullptr, 0}
   };
-  static const char shortopts[] = "v:c:m:n:r:s";
+  static const char shortopts[] = "v:c:m:n:r:s:a";
   while (true) {
     switch (getopt_long(argc, argv, shortopts, longopts, nullptr)) {
+      case 'a': no_belongs_to_main_unit = true; break;
       case 'c': AddGlobToReportIWYUViolationsFor(optarg); break;
       case 'k': AddGlobToKeepIncludes(optarg); break;
       case 't': transitive_includes_only = true; break;
