@@ -95,6 +95,7 @@ static void PrintHelp(const char* extra_msg) {
          "   --no_comments: do not add 'why' comments.\n"
          "   --no_fwd_decls: do not use forward declarations.\n"
          "   --no_reorder: do not sort includes.\n"
+	 "   --output_replacements_xml=<filename> : Output no_reorder changes to a file\n"
          "   --no_belongs_to_main_unit: do not work headers with the same base as the main file.\n"
          "   --verbose=<level>: the higher the level, the more output.\n"
          "   --quoted_includes_first: when sorting includes, place quoted\n"
