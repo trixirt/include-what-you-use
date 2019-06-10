@@ -106,6 +106,7 @@ struct CommandlineFlags {
   bool no_reorder;    // Disable sorting includes.
   string output_replacements_xml; // xml file to write output to
   bool no_belongs_to_main_unit;    // Do work on the default associate headers.
+  bool mark_globals_used; // Mark all globals as used.
   bool cxx17ns; // -C: C++17 nested namespace syntax
 };
 

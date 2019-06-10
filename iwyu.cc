@@ -1859,6 +1859,23 @@ class IwyuBaseAstVisitor : public BaseAstVisitor<Derived> {
   // Both of these iwyu requirements can be overridden by the function
   // author; for details, see CodeAuthorWantsJustAForwardDeclare.
   bool VisitFunctionDecl(clang::FunctionDecl* decl) {
+    if (GlobalFlags().mark_globals_used) {
+      if (decl->isGlobal()) {
+	// set location to where this decl's #include is in the main file.
+	clang::SourceLocation o, t;
+	const clang::FileEntry *e;
+	clang::FileID i;
+	o = GetLocation(GetDefinitionAsWritten(decl));
+	t = o;
+	while(o.isValid()) {
+	  t = o;
+	  i = GlobalSourceManager()->getFileID(t);
+	  e = GlobalSourceManager()->getFileEntryForID(i);
+	  o = GlobalSourceManager()->getIncludeLoc(i);
+	}
+	ReportDeclUse(t, decl);
+      }
+    }
     if (CanIgnoreCurrentASTNode())  return true;
 
     if (decl->isThisDeclarationADefinition()) {
@@ -3850,6 +3867,27 @@ class IwyuAstConsumer
   }
 
   bool VisitNamedDecl(clang::NamedDecl *decl) {
+    return Base::VisitNamedDecl(decl);
+  }
+
+  bool VisitVarDecl(clang::VarDecl *decl) {
+    if (GlobalFlags().mark_globals_used) {
+      if (decl->hasGlobalStorage() && !decl->isStaticLocal()) {
+	// set location to where this decl's #include is in the main file.
+	clang::SourceLocation o, t;
+	const clang::FileEntry *e;
+	clang::FileID i;
+	o = GetLocation(GetDefinitionAsWritten(decl));
+	t = o;
+	while(o.isValid()) {
+	  t = o;
+	  i = GlobalSourceManager()->getFileID(t);
+	  e = GlobalSourceManager()->getFileEntryForID(i);
+	  o = GlobalSourceManager()->getIncludeLoc(i);
+	}
+	ReportDeclUse(t, decl);
+      }
+    }
     return Base::VisitNamedDecl(decl);
   }
 

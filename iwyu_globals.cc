@@ -88,6 +88,7 @@ static void PrintHelp(const char* extra_msg) {
          "   --transitive_includes_only: do not suggest that a file add\n"
          "        foo.h unless foo.h is already visible in the file's\n"
          "        transitive includes.\n"
+	 "   --mark_global_used: any global is assumed to be used.\n"
          "   --max_line_length: maximum line length for includes.\n"
          "        Note that this only affects comments and alignment thereof,\n"
          "        the maximum line length can still be exceeded with long\n"
@@ -164,6 +165,7 @@ CommandlineFlags::CommandlineFlags()
     : transitive_includes_only(false),
       verbose(getenv("IWYU_VERBOSE") ? atoi(getenv("IWYU_VERBOSE")) : 1),
       no_default_mappings(false),
+      mark_globals_used(false),
       max_line_length(80),
       prefix_header_include_policy(CommandlineFlags::kAdd),
       pch_in_code(false),
@@ -186,6 +188,7 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
     {"no_default_mappings", no_argument, nullptr, 'n'},
     {"prefix_header_includes", required_argument, nullptr, 'x'},
     {"pch_in_code", no_argument, nullptr, 'h'},
+    {"mark_globals_used", no_argument, nullptr, 'g'},
     {"max_line_length", required_argument, nullptr, 'l'},
     {"no_comments", no_argument, nullptr, 'o'},
     {"no_fwd_decls", no_argument, nullptr, 'f'},
@@ -195,7 +198,7 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
     {"cxx17ns", no_argument, nullptr, 'C'},
     {nullptr, 0, nullptr, 0}
   };
-  static const char shortopts[] = "v:c:m:n:r:s:a";
+  static const char shortopts[] = "v:c:m:n:r:s:a:g";
   while (true) {
     switch (getopt_long(argc, argv, shortopts, longopts, nullptr)) {
       case 'a': no_belongs_to_main_unit = true; break;
@@ -203,6 +206,7 @@ int CommandlineFlags::ParseArgv(int argc, char** argv) {
       case 'k': AddGlobToKeepIncludes(optarg); break;
       case 't': transitive_includes_only = true; break;
       case 'v': verbose = atoi(optarg); break;
+      case 'g': mark_globals_used = true; break;
       case 'm': mapping_files.push_back(optarg); break;
       case 'n': no_default_mappings = true; break;
       case 'o': no_comments = true; break;
