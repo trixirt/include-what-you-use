@@ -88,7 +88,7 @@ static void PrintHelp(const char* extra_msg) {
          "   --transitive_includes_only: do not suggest that a file add\n"
          "        foo.h unless foo.h is already visible in the file's\n"
          "        transitive includes.\n"
-	 "   --mark_global_used: any global is assumed to be used.\n"
+	 "   --mark_globals_used: any global is assumed to be used.\n"
          "   --max_line_length: maximum line length for includes.\n"
          "        Note that this only affects comments and alignment thereof,\n"
          "        the maximum line length can still be exceeded with long\n"

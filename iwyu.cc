@@ -1956,6 +1956,26 @@ class IwyuBaseAstVisitor : public BaseAstVisitor<Derived> {
   // These are defined as a derived class overriding a method with a different
   // return type from the base.
   bool VisitCXXMethodDecl(CXXMethodDecl* method_decl) {
+
+    if (GlobalFlags().mark_globals_used) {
+      if (method_decl->hasBody() &&
+	  method_decl->getLexicalDeclContext()->isFileContext()) {
+	// set location to where this method_decl's #include is in the main file.
+	clang::SourceLocation o, t;
+	const clang::FileEntry *e;
+	clang::FileID i;
+	o = GetLocation(GetDefinitionAsWritten(method_decl));
+	t = o;
+	while(o.isValid()) {
+	  t = o;
+	  i = GlobalSourceManager()->getFileID(t);
+	  e = GlobalSourceManager()->getFileEntryForID(i);
+	  o = GlobalSourceManager()->getIncludeLoc(i);
+	}
+	ReportDeclUse(t, method_decl);
+      }
+    }
+
     if (CanIgnoreCurrentASTNode()) return true;
 
     if (HasCovariantReturnType(method_decl)) {
