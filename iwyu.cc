@@ -3811,7 +3811,12 @@ class IwyuAstConsumer
               definitely_keep_fwd_decl = true;
           }
         }
-      } else {
+	// (4) This is location is part of a macro expansion.
+	// A macro may contain more than just forward decl.
+	// And removing the forward decl would remove macro.
+      } else if (CurrentLoc().isMacroID()) {
+	definitely_keep_fwd_decl = true;
+      }else {
         SourceLocation decl_end_location = decl->getSourceRange().getEnd();
         if (LineHasText(decl_end_location, "// IWYU pragma: keep") ||
             LineHasText(decl_end_location, "/* IWYU pragma: keep")) {
